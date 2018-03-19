@@ -1,0 +1,98 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Mar 11 08:22:54 2018
+
+@author: reneehsu
+"""
+
+import nltk
+
+from nltk import word_tokenize, pos_tag, ne_chunk
+from nltk.chunk import conlltags2tree, tree2conlltags
+import re
+from collections import OrderedDict
+import numpy as np
+with open('Harry Potter 2 - Chamber of Secrets.txt', 'r') as myfile:
+  data = myfile.read().replace('\n', '')
+
+
+sentence="Mark and Renee are working at Google. Harry lives in Taipei. Terry loves Oliver. Mark and Renee are good friend."
+sent = """Today, Harry Potter and Renee Hsu are friends. Harry and Renee date. Renee Hsu hates Harry a lot.
+Sam Wolf and Renee are roommates. Sam is nice. Hannah Vega lives with them too. Hannah and Renee are close friends
+"""
+
+ne_tree=ne_chunk(pos_tag(word_tokenize(data)))
+
+iob_tagged=tree2conlltags(ne_tree)
+print iob_tagged
+
+# only starts adding after full name appears...
+character = OrderedDict()
+#iterate through all words
+for i in range(len(iob_tagged)):
+    # if this word is a first name
+    if iob_tagged[i][2]=="B-PERSON":
+        # if the next word is a last name
+        if iob_tagged[i+1][2]=="I-PERSON":
+            full = iob_tagged[i][0]+" "+iob_tagged[i+1][0]
+            # if this full name hasn't appear yet, add it to character
+            if full not in character.keys():
+                character[full]=[full]
+        # if it's a pure first name            
+        else:
+            first = iob_tagged[i][0]
+            #iterate through all keys to see if first is part of it, if so add it to its value
+            add = False
+            for key in character.keys():
+                if re.findall(first,key):
+                    if first not in character[key]:
+                        character[key].append(first)
+                        add = True
+            if add == False:
+                character[first]=[first]
+                        
+    elif iob_tagged[i][2]=="I-PERSON":
+        last = iob_tagged[i][0]
+            #iterate through all keys to see if first is part of it, if so add it to its value
+        for key in character.keys():
+                if re.findall(last,key):
+                    if last not in character[key]:
+                        character[key].append(last)    
+           
+print character
+
+n=len(character)
+adjMatrix = [[0]*n for _ in range(n)]
+
+words = word_tokenize(data)
+
+#this should be changed to the first one appear
+lastcharacter = 0
+
+for word in words:
+    for i, (key, value) in enumerate(character.iteritems()):  
+            if word in value and key!= character.keys()[lastcharacter]:          
+                adjMatrix[lastcharacter][i]+=1
+                lastcharacter = i
+                break
+               
+print adjMatrix
+adjMatrix = np.array(adjMatrix)
+print adjMatrix.shape
+
+#plotting
+import matplotlib.pyplot as plt 
+import networkx as nx
+G = nx.DiGraph()
+G.add_nodes_from(character.keys())
+for i in range(adjMatrix.shape[0]):
+    for j in range(adjMatrix.shape[1]): 
+        if adjMatrix[i][j]>0:          
+            G.add_edge(character.keys()[i],character.keys()[j],weight=adjMatrix[i][j])
+nx.draw(G,with_labels=True)
+plt.show()
+
+pr = nx.pagerank(G, alpha=0.85) # the default damping parameter alpha = 0.85
+print pr
+
